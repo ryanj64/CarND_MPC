@@ -7,7 +7,7 @@ using CppAD::AD;
 
 // TODO: Set the timestep length and duration
 size_t N = 10;
-double dt = 0.08;
+double dt = 0.1;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -21,7 +21,7 @@ double dt = 0.08;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
-const double ref_v = 95;
+const double ref_v = 35;
 
 size_t x_start = 0;
 size_t y_start = x_start + N;
@@ -57,17 +57,14 @@ class FG_eval {
     }
 
     for (unsigned int t = 0; t < N-1; t++) {
-      fg[0] += 5000*CppAD::pow(vars[delta_start + t], 2);
+      fg[0] += 1000*CppAD::pow(vars[delta_start + t], 2);
       // Note adding weight to acceleration error cause a lower velocity, so ref_v must be increase to adjusted for the target speed.
-      fg[0] += 25*CppAD::pow(vars[a_start + t], 2);
-      //Prevents oscillations around curves.
-      fg[0] += 2.8*CppAD::pow(vars[v_start + t]*vars[delta_start + t], 2);
-      
+      fg[0] += 1*CppAD::pow(vars[a_start + t], 2);
     }
 
     for (unsigned int t = 0; t < N-2; t++) {
       fg[0] += 600*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-      fg[0] += 300*CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+      fg[0] += 500*CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
 
     fg[1 + x_start] = vars[x_start];
@@ -101,7 +98,7 @@ class FG_eval {
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
       // Changed psi0 + (v0/Lf) * delta0 * dt --> psi0 - (v0/Lf) * delta0 * dt
       // in accordance with the tips & tricks section
-      fg[1 + psi_start + t] = psi1 - (psi0 - (v0/Lf) * delta0 * dt);
+      fg[1 + psi_start + t] = psi1 - (psi0 + (v0/Lf) * delta0 * dt);
       fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
 
       // Updated to reflect a 3rd degree polynomial.

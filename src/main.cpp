@@ -107,6 +107,10 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
+          // Add-Ons to predicting the initial state.
+          double delta = j[1]["steering_angle"];
+          double a = j[1]["throttle"];
+
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
@@ -123,9 +127,8 @@ int main() {
             // Ym = Yp + (sin(theta) * Xc) + (cos(theta) * Yc)
             double ptsx_diff = ptsx[i]-px;
             double ptsy_diff = ptsy[i]-py;
-            ptsx[i] = 0.0 + (ptsx_diff * cos(-psi)) - (ptsy_diff * sin(-psi));
-            ptsy[i] = 0.0 + (ptsx_diff * sin(-psi)) + (ptsy_diff * cos(-psi));
-            std::cout << ptsx[i] << "," << ptsy[i] << std::endl;
+            ptsx[i] = 0.0 + (ptsx_diff * cos(0.0-psi)) - (ptsy_diff * sin(0.0-psi));
+            ptsy[i] = 0.0 + (ptsx_diff * sin(0.0-psi)) + (ptsy_diff * cos(0.0-psi));
 
           }
 
@@ -150,6 +153,22 @@ int main() {
           double epsi = psi - atan(coeffs[1]);
 
           Eigen::VectorXd state(6);
+
+          // Added based on Udacity feedback.
+          double Lf, latency;
+          Lf = 2.67;
+          latency = 0.100; //100ms latency
+          v *= 0.44704;
+          delta = -delta;
+          psi = delta;
+
+          // Added based on Udacity feedback.
+          px   = (px + v * cos(psi) * latency);
+          py   = (py + v * sin(psi) * latency);
+          cte  = (cte + v * sin(epsi) * latency);
+          epsi = (epsi + (v/Lf) * delta * latency);
+          psi  = (psi + (v/Lf) * delta * latency);
+          v    = (v + a * latency);
 
           state << px, py, psi, v, cte, epsi;
 
@@ -209,13 +228,14 @@ int main() {
             }
           }
 
+          // Extract the delta and acceleration values from the eigen matrix.
           double steer_value = vars(6, 0);
           double throttle_value = vars(7, 0);
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value/deg2rad(25);
+          msgJson["steering_angle"] = -steer_value/deg2rad(25);
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
