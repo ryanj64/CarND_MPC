@@ -37,7 +37,25 @@ The meaning of each parameter is described in the following table:
 
 ## Timestep Length & Elapsed Duration (N & dt)
 
-The final N and dt values are `N = 10` and `dt = 0.08`.  The starting value for N and dt was `N = 10` and `dt = 0.1` and was adjusted again after adding weights to the errors.  Once the vehicle moved around the track successful, N and dt were adjust for improvements. If N is higher the car will start to steer badly and if it is lower the steering reacts slowly holding dt constant. The other downside of a high N value is that the calculation takes more time, but may not be noticeable on a fast PC.  However, in the embedded world this will be very noticeable and expensive to have a high N value. I believe that other values of N and dt will work, but will require adjusting the weights again.  Also increasing the speed of the vehicle had a big impact to the configuration of the weights. I was able to achieve a speed around 65mph with this configuration.
+The final N and dt values are `N = 10` and `dt = 0.1`.  The reason is due to the addition of the code shown below.  There is a 100ms latency, so the kinematic equations are used to predict 100ms into the future when the actuators will receive the command.  The 100ms time latency is to represent the propagation delay of the signals.  In the first submission, the N and dt values were `N = 10` and `dt = 0.08`.  These values worked well with the adjusted weight applied to each cost.  However, this didn't work well after adding the kinematic equation, so dt was changed to 0.1. If N is higher the car will start to steer badly and if it is lower the steering reacts slowly holding dt constant. The other downside of a high N value is that the calculation takes more time, but may not be noticeable on a fast PC.  However, in the embedded world this will be very noticeable and expensive to have a high N value. I believe that other values of N and dt will work, but will require adjusting the weights again.  Also increasing the speed of the vehicle had a big impact to the configuration of the weights. I was able to achieve a speed around 74mph with this configuration.
+
+```C
+// Added based on Udacity feedback.
+double Lf, latency;
+Lf = 2.67;
+latency = 0.100; //100ms latency
+v *= 0.44704;
+delta = -delta;
+psi = delta;
+
+// Added based on Udacity feedback.
+px   = (px + v * cos(psi) * latency);
+py   = (py + v * sin(psi) * latency);
+cte  = (cte + v * sin(epsi) * latency);
+epsi = (epsi + (v/Lf) * delta * latency);
+psi  = (psi + (v/Lf) * delta * latency);
+v    = (v + a * latency);
+```
 
 ## Polynomial Fitting and MPC Preprocessing
 
@@ -100,7 +118,7 @@ The orientation error (<b>e&psi;</b>) is calculated using the derivative of the 
 
 Next <b>x</b>, <b>y</b>, <b>&psi;</b>, <b>velocity</b>, <b>cte</b>, and <b>e&psi;</b> are all feed into the `Solve()` function. The function optimizes the outputs (<b>&delta;</b> and <b>acceleration</b>) based on cost and constraints. <b>&delta;</b> is constraint between -25 and 25 degrees. <b>Acceleration</b> is constrained between -1 and 1.  
 
-The chosen weights for each error is shown in the code below. There is one addition error that was added outside of what was shown in the Udacity lessons and that is the relationship between speed and steering angle.
+The chosen weights for each error is shown in the code below.
 
 ```C
 fg[0] = 0;
@@ -115,17 +133,14 @@ for (unsigned int t = 0; t < N; t++) {
 }
 
 for (unsigned int t = 0; t < N-1; t++) {
-  fg[0] += 5000*CppAD::pow(vars[delta_start + t], 2);
-  // Note adding weight to acceleration error cause a lower velocity, so ref_v must be increase to adjusted for the target speed.
-  fg[0] += 25*CppAD::pow(vars[a_start + t], 2);
-  //Prevents oscillations around curves.
-  fg[0] += 2.8*CppAD::pow(vars[v_start + t]*vars[delta_start + t], 2);
+  fg[0] += 1000*CppAD::pow(vars[delta_start + t], 2);
+  fg[0] += 1*CppAD::pow(vars[a_start + t], 2);
 
 }
 
 for (unsigned int t = 0; t < N-2; t++) {
   fg[0] += 600*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-  fg[0] += 300*CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+  fg[0] += 500*CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
 }
 ```
 
@@ -135,9 +150,9 @@ Below are graphs plotting &delta; (delta) and acceleration for one lap around th
 
 Final graphs:
 
-![Delta](./images/0_delta.png "Delta")
+![Delta](./images/2_delta.png "Delta")
 
-![Acceleration](./images/0_acceleration.png "Acceleration")
+![Acceleration](./images/2_acceleration.png "Acceleration")
 
 Initial graphs before extensive tuning:
 
@@ -147,7 +162,7 @@ Initial graphs before extensive tuning:
 
 ## Model Predictive Control with Latency
 
-The error weights, N, and dt values were tuned with a 100ms delay.  When I removed the 100ms latency the car behaved similarly, but when set to 200ms the car didn't make it around the track.  The vehicle continues on its current trajectory until the next actuation command, so there is some overshoots due to this.  However, they are minimal enough for a smooth ride around the track.  
+As mentioned in the __Timestep Length & Elapsed Duration__ section the kinematic equations were used to predict where the state will be after a 100ms latency.  Originally the parameters were tuned without consideration for latency and the model was able to move around the track successfully.  However, adding the kinematic equations cause addition tuning of the weights, N, and dt values.  When latency is considered in the model, there was a lower error rate when compared to the model without considering the 100ms latency.
 
 ## MP4 Video
 
